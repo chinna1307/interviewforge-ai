@@ -21,9 +21,13 @@ compile-error.txt
 
 # IDE and OS files
 .idea/
+.vscode/
 **/.settings/
 **/.classpath
 **/.project
 **/.factorypath
 .DS_Store
 Thumbs.db
+
+# Local analysis artifacts
+repomix-output.xml
