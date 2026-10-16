@@ -42,7 +42,14 @@ class ResumeControllerTest {
                 "file",
                 "resume.pdf",
                 "application/pdf",
-                "Sample resume content with technical skills Java Spring Boot".getBytes()
+                ("%PDF-1.4\n"
+                        + "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+                        + "2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n"
+                        + "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]"
+                        + "/Contents 4 0 R>>endobj\n"
+                        + "4 0 obj<</Length 44>>stream\nBT /F1 12 Tf 72 720 Td"
+                        + "(Java Spring Boot resume) Tj ET\nendstream endobj\n"
+                        + "trailer<</Root 1 0 R>>\n%%EOF").getBytes()
         );
 
         Authentication auth = mock(Authentication.class);

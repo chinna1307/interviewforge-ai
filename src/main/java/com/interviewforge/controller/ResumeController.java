@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.util.StringUtils;
 
 import com.interviewforge.dto.ResumeSummaryDto;
 import com.interviewforge.dto.ResumeUploadResponse;
@@ -59,14 +60,22 @@ public class ResumeController {
                     .body("Please select a resume file");
         }
 
-        String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "resume";
-        String lowerName = originalFilename.toLowerCase();
+        String originalFilename = StringUtils.cleanPath(
+                file.getOriginalFilename() != null ? file.getOriginalFilename() : "resume");
+        String lowerName = originalFilename.toLowerCase(java.util.Locale.ROOT);
         if (!lowerName.endsWith(".pdf") && !lowerName.endsWith(".docx") && !lowerName.endsWith(".doc")) {
             throw new IllegalArgumentException("Only PDF and DOCX resume files are supported.");
         }
 
         Tika tika = new Tika();
-        String extractedText = tika.parseToString(file.getInputStream());
+        byte[] content = file.getBytes();
+        String extractedText = tika.parseToString(new java.io.ByteArrayInputStream(content));
+        String detectedType = tika.detect(content, originalFilename);
+        if (!detectedType.equals("application/pdf")
+                && !detectedType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                && !detectedType.equals("application/msword")) {
+            throw new IllegalArgumentException("The uploaded file content does not match a supported resume format.");
+        }
 
         if (extractedText == null || extractedText.isBlank()) {
             throw new IllegalArgumentException("Could not extract readable text from the uploaded resume.");

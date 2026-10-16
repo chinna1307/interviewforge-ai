@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
         if (msg.toLowerCase().contains("not found")) {
             return buildResponse(HttpStatus.NOT_FOUND, msg);
         }
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, msg);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
     }
 
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message) {

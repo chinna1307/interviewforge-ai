@@ -5,21 +5,29 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
+import com.interviewforge.repository.ResumeRepository;
 @RestController
 @RequestMapping("/api/ai")
 public class RAGController {
 
     private final ChatClient chatClient;
+    private final ResumeRepository resumeRepository;
 
-    public RAGController(ChatClient chatClient) {
+    public RAGController(ChatClient chatClient, ResumeRepository resumeRepository) {
         this.chatClient = chatClient;
+        this.resumeRepository = resumeRepository;
     }
 
     @GetMapping("/rag")
     public String askAI(
             @RequestParam Long resumeId,
-            @RequestParam String question) {
+            @RequestParam String question,
+            Authentication authentication) {
+        resumeRepository.findByIdAndUserEmail(resumeId, authentication.getName())
+                .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
+                        "Resume not found or access denied."));
 
         return chatClient
                 .prompt()

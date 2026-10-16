@@ -13,20 +13,28 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.context.annotation.Profile;
+import com.interviewforge.repository.ResumeRepository;
 
+@Profile("local-tools")
 @RestController
 @RequestMapping("/api/ai")
 public class EmbeddingTestController {
 
     private final EmbeddingModel embeddingModel;
     private final VectorStore vectorStore;
+    private final ResumeRepository resumeRepository;
 
     public EmbeddingTestController(
             EmbeddingModel embeddingModel,
-            VectorStore vectorStore) {
+            VectorStore vectorStore,
+            ResumeRepository resumeRepository) {
 
         this.embeddingModel = embeddingModel;
         this.vectorStore = vectorStore;
+        this.resumeRepository = resumeRepository;
     }
 
     @GetMapping("/embedding")
@@ -78,12 +86,17 @@ public class EmbeddingTestController {
 
     @GetMapping("/search")
     public List<Document> search(
-            @RequestParam(defaultValue = "Java backend developer") String query) {
+            @RequestParam Long resumeId,
+            @RequestParam(defaultValue = "Java backend developer") String query,
+            Authentication authentication) {
+        resumeRepository.findByIdAndUserEmail(resumeId, authentication.getName())
+                .orElseThrow(() -> new AccessDeniedException("Resume not found or access denied."));
 
         return vectorStore.similaritySearch(
                 SearchRequest.builder()
                         .query(query)
                         .topK(3)
+                        .filterExpression("resumeId == '" + resumeId + "'")
                         .build()
         );
     }
