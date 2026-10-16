@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 
 import {
@@ -24,7 +24,7 @@ import {
   ErrorState,
   PageHeading,
   Spinner,
-
+  
   selectClass,
 } from "../components/ui"
 import { cx } from "../lib/cx"
@@ -145,7 +145,7 @@ function SetupView({
             >
               {resumes.map((r) => (
                 <option key={r.id} value={r.id}>
-                  Resume #{r.id} â€” {r.fileName}
+                  Resume #{r.id} — {r.fileName}
                 </option>
               ))}
             </select>
@@ -167,7 +167,7 @@ function SetupView({
 
           <Button size="lg" onClick={onStart} disabled={!selectedResumeId || isStarting}>
             {isStarting ? <Spinner /> : <IconMic size={16} />}
-            {isStarting ? "Generating questionsâ€¦" : "Start mock interview"}
+            {isStarting ? "Generating questions…" : "Start mock interview"}
           </Button>
         </div>
       </div>
@@ -321,7 +321,7 @@ function QuestionWorkspace({
               value={answerDraft}
               onChange={(event) => onAnswerChange(event.target.value)}
               disabled={isSubmitting || isLocked}
-              placeholder="Walk through your approach, the trade-offs you considered, and any concrete examples from your projectsâ€¦"
+              placeholder="Walk through your approach, the trade-offs you considered, and any concrete examples from your projects…"
               className="w-full rounded-xl border border-line bg-surface-muted p-4 text-sm leading-relaxed text-ink transition placeholder:text-ink-faint focus:border-brand-400 focus:bg-surface focus:ring-4 focus:ring-brand-500/12 focus:outline-none disabled:opacity-60"
             />
 
@@ -354,7 +354,7 @@ function QuestionWorkspace({
                 >
                   {isSubmitting ? <Spinner /> : <IconCheck size={15} />}
                   {isSubmitting
-                    ? "Evaluating with AIâ€¦"
+                    ? "Evaluating with AI…"
                     : current.answered
                       ? "Update answer"
                       : "Submit answer"}
@@ -500,7 +500,7 @@ function ReportView({ report, onGenerate, isGenerating, onRetry }) {
           </div>
           <Button onClick={onGenerate} disabled={isGenerating}>
             {isGenerating ? <Spinner /> : <IconBolt size={16} />}
-            {isGenerating ? "Generating reportâ€¦" : "Generate AI report"}
+            {isGenerating ? "Generating report…" : "Generate AI report"}
           </Button>
         </div>
 
@@ -550,7 +550,7 @@ function ReportView({ report, onGenerate, isGenerating, onRetry }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-ink">Detailed AI report</h2>
         <span className="text-[11px] text-ink-faint">
-          Session #{report.sessionId} Â· {report.answeredQuestions}/
+          Session #{report.sessionId} · {report.answeredQuestions}/
           {report.totalQuestions} answered
         </span>
       </div>
@@ -838,7 +838,7 @@ function Interview() {
       setError(
         err?.response?.data?.message ||
           err?.message ||
-          "Could not evaluate your answer. Your draft is preserved â€” try submitting again.",
+          "Could not evaluate your answer. Your draft is preserved — try submitting again.",
       )
     } finally {
       setIsSubmitting(false)
@@ -885,7 +885,7 @@ function Interview() {
     return (
       <div className="flex min-h-[45vh] flex-col items-center justify-center gap-3">
         <Spinner className="h-7 w-7 text-brand-500" />
-        <p className="text-sm text-ink-muted">Loading interview workspaceâ€¦</p>
+        <p className="text-sm text-ink-muted">Loading interview workspace…</p>
       </div>
     )
   }

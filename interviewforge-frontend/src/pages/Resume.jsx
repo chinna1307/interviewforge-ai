@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import {
@@ -19,7 +19,7 @@ import {
   PageHeading,
   Skeleton,
   Spinner,
-
+  
   selectClass,
 } from "../components/ui"
 import { cx } from "../lib/cx"
@@ -53,7 +53,7 @@ const normalizeList = (data) => {
     if (trimmed.includes("\n")) {
       return trimmed
         .split("\n")
-        .map((line) => line.replace(/^[-*â€¢\d.]+\s*/, "").trim())
+        .map((line) => line.replace(/^[-*•\d.]+\s*/, "").trim())
         .filter(Boolean)
     }
     return [trimmed]
@@ -129,10 +129,10 @@ const ANALYSIS_SECTIONS = [
 ]
 
 const MARKERS = {
-  check: { glyph: "âœ“", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" },
+  check: { glyph: "✓", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" },
   bang: { glyph: "!", className: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" },
-  arrow: { glyph: "â†’", className: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300" },
-  star: { glyph: "â˜…", className: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300" },
+  arrow: { glyph: "→", className: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300" },
+  star: { glyph: "★", className: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300" },
 }
 
 const CHIP_TONES = {
@@ -226,7 +226,7 @@ function Dropzone({ selectedFile, disabled, onFile, inputId }) {
       </div>
 
       <p className="mt-4 text-[11px] text-ink-faint">
-        Supported formats: PDF, DOCX, DOC Â· Maximum 10 MB
+        Supported formats: PDF, DOCX, DOC · Maximum 10 MB
       </p>
     </div>
   )
@@ -512,7 +512,7 @@ function Resume() {
                   {selectedFile.name}
                 </p>
                 <p className="mt-0.5 text-[11px] text-ink-muted">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB Â· ready to
+                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB · ready to
                   send
                 </p>
               </div>
@@ -531,9 +531,9 @@ function Resume() {
               <Button onClick={handleUploadAndAnalyze} disabled={isBusy}>
                 {isBusy ? <Spinner /> : <IconUpload size={15} />}
                 {isUploading
-                  ? "Uploadingâ€¦"
+                  ? "Uploading…"
                   : isAnalyzing
-                    ? "Analyzingâ€¦"
+                    ? "Analyzing…"
                     : "Upload & analyze"}
               </Button>
             </div>
@@ -548,8 +548,8 @@ function Resume() {
             <Spinner />
             <span>
               {isUploading
-                ? "Uploading resume and extracting textâ€¦"
-                : "InterviewForge AI is analyzing your resumeâ€¦"}
+                ? "Uploading resume and extracting text…"
+                : "InterviewForge AI is analyzing your resume…"}
             </span>
           </div>
         )}
@@ -585,7 +585,7 @@ function Resume() {
               <p className="mt-0.5 text-[11px] text-ink-muted">
                 {uploadedResume?.resumeId ? (
                   <span className="text-emerald-600 dark:text-emerald-400">
-                    Ready Â· Resume #{uploadedResume.resumeId}
+                    Ready · Resume #{uploadedResume.resumeId}
                   </span>
                 ) : selectedFile ? (
                   <span className="text-brand-600 dark:text-brand-300">
@@ -619,7 +619,7 @@ function Resume() {
               >
                 {userResumes.map((r) => (
                   <option key={r.id} value={r.id}>
-                    #{r.id} â€” {r.fileName}
+                    #{r.id} — {r.fileName}
                   </option>
                 ))}
               </select>
@@ -636,9 +636,9 @@ function Resume() {
             >
               {isBusy ? <Spinner /> : <IconRefresh size={14} />}
               {isUploading
-                ? "Uploadingâ€¦"
+                ? "Uploading…"
                 : isAnalyzing
-                  ? "Analyzingâ€¦"
+                  ? "Analyzing…"
                   : analysis
                     ? "Re-analyze"
                     : "Analyze resume"}

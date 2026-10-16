@@ -1,47 +1,29 @@
-HELP.md
-target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# Environment files and secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/application-local.properties
+**/application-local.yml
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# Java/Maven generated files
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
+# Node/Vite generated files
+**/node_modules/
+**/dist/
+**/coverage/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
-.vscode/
-src/main/resources/application.properties
-# Environment variables and secrets
-.env
-.env.*
-!.env.example
-
-# Local logs and generated files
-*.log
+# Logs and local build output
+**/*.log
 build-log.txt
 compile-error.txt
 
-# Frontend dependencies and build output
-interviewforge-frontend/node_modules/
-interviewforge-frontend/dist/
+# IDE and OS files
+.idea/
+**/.settings/
+**/.classpath
+**/.project
+**/.factorypath
+.DS_Store
+Thumbs.db
