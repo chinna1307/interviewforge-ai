@@ -32,3 +32,16 @@ build/
 ### VS Code ###
 .vscode/
 src/main/resources/application.properties
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local logs and generated files
+*.log
+build-log.txt
+compile-error.txt
+
+# Frontend dependencies and build output
+interviewforge-frontend/node_modules/
+interviewforge-frontend/dist/

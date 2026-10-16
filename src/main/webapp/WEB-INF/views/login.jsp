@@ -1,26 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Login - InterviewForge AI</title>
+<meta charset="UTF-8">
+<title>Login - InterviewForge AI</title>
 </head>
 <body>
 
-    <h1>Login to InterviewForge AI</h1>
+	<h1>Login to InterviewForge AI</h1>
 
-    <form action="/login" method="post">
+	<form action="/login" method="post">
 
-        <label>Email:</label>
-        <input type="email" name="email" required>
-        <br><br>
+		<label>Email:</label> <input type="email" name="email" required>
+		<br>
+		<br> <label>Password:</label> <input type="password"
+			name="password" required> <br>
+		<br>
 
-        <label>Password:</label>
-        <input type="password" name="password" required>
-        <br><br>
+		<button type="submit">Login</button>
 
-        <button type="submit">Login</button>
-
-    </form>
+	</form>
 
 </body>
 </html>

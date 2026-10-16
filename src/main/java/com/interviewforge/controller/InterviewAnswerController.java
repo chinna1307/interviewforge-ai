@@ -1,5 +1,6 @@
 package com.interviewforge.controller;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,20 +17,17 @@ public class InterviewAnswerController {
 
     private final InterviewAnswerService interviewAnswerService;
 
-    public InterviewAnswerController(
-            InterviewAnswerService interviewAnswerService) {
-
+    public InterviewAnswerController(InterviewAnswerService interviewAnswerService) {
         this.interviewAnswerService = interviewAnswerService;
     }
 
     @PostMapping("/questions/{questionId}/answer")
     public AnswerEvaluation submitAnswer(
             @PathVariable Long questionId,
-            @RequestBody InterviewAnswerRequest request) {
+            @RequestBody InterviewAnswerRequest request,
+            Authentication authentication) {
 
-        return interviewAnswerService.submitAnswer(
-                questionId,
-                request
-        );
+        String email = authentication != null ? authentication.getName() : null;
+        return interviewAnswerService.submitAnswer(questionId, request, email);
     }
 }

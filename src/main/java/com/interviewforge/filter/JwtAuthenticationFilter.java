@@ -1,27 +1,30 @@
 package com.interviewforge.filter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.interviewforge.util.JwtService;
+
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import com.interviewforge.util.JwtService;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import java.util.ArrayList;
+
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-	
-	private final JwtService jwtService;
+
+    private final JwtService jwtService;
 
     public JwtAuthenticationFilter(JwtService jwtService) {
         this.jwtService = jwtService;
     }
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -36,18 +39,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String token = authHeader.substring(7);
+        String token = authHeader.substring(7).trim();
 
-        String email = jwtService.extractEmail(token);
-
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(
-                        email,
-                        null,
-                        new ArrayList<>()
-                );
-
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        try {
+            String email = jwtService.extractEmail(token);
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                email,
+                                null,
+                                new ArrayList<>()
+                        );
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
+        } catch (JwtException | IllegalArgumentException ex) {
+            SecurityContextHolder.clearContext();
+        }
 
         filterChain.doFilter(request, response);
     }
