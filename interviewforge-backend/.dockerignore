@@ -1,14 +1,18 @@
-# VCS
+# VCS and repository metadata
 .git
 .gitignore
+.gitattributes
 
-# Build output
+# Maven/build output
 **/target/
+**/.mvn/wrapper/dists/
 
 # Local secrets and environment files
 .env
 .env.*
 !.env.example
+**/*.pem
+**/*.key
 src/main/resources/application.properties
 src/main/resources/application-local.properties
 src/main/resources/application-local.yml
