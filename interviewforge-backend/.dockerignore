@@ -1,0 +1,25 @@
+# VCS
+.git
+.gitignore
+
+# Build output
+**/target/
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+src/main/resources/application.properties
+src/main/resources/application-local.properties
+src/main/resources/application-local.yml
+
+# Logs and local artifacts
+*.log
+build-log.txt
+compile-error.txt
+
+# IDE/OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
