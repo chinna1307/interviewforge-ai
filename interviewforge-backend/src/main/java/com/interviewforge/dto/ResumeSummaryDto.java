@@ -6,6 +6,11 @@ public record ResumeSummaryDto(
         Long id,
         String fileName,
         String fileType,
-        LocalDateTime uploadedAt
+        LocalDateTime uploadedAt,
+        String status
 ) {
+    public ResumeSummaryDto(Long id, String fileName, String fileType, LocalDateTime uploadedAt) {
+        this(id, fileName, fileType, uploadedAt, "READY");
+    }
 }
+

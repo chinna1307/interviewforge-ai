@@ -25,26 +25,26 @@ public class ProviderConfig {
     // GROQ
     // ========================================
 
-    @Value("${groq.api-key}")
+    @Value("${groq.api-key:}")
     private String groqApiKey;
 
-    @Value("${groq.base-url}")
+    @Value("${groq.base-url:https://api.groq.com/openai/v1}")
     private String groqBaseUrl;
 
-    @Value("${groq.model}")
+    @Value("${groq.model:llama-3.3-70b-versatile}")
     private String groqModel;
 
     // ========================================
     // OPENROUTER
     // ========================================
 
-    @Value("${openrouter.api-key}")
+    @Value("${openrouter.api-key:}")
     private String openRouterApiKey;
 
-    @Value("${openrouter.base-url}")
+    @Value("${openrouter.base-url:https://openrouter.ai/api/v1}")
     private String openRouterBaseUrl;
 
-    @Value("${openrouter.model}")
+    @Value("${openrouter.model:openrouter/free}")
     private String openRouterModel;
 
 

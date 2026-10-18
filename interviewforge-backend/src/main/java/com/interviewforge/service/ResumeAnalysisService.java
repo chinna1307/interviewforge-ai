@@ -1,5 +1,7 @@
 package com.interviewforge.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +12,8 @@ import com.interviewforge.service.ai.AIProviderRouter;
 
 @Service
 public class ResumeAnalysisService {
+
+    private static final Logger log = LoggerFactory.getLogger(ResumeAnalysisService.class);
 
     private final ChatClient chatClient;
     private final AIProviderRouter aiProviderRouter;
@@ -56,6 +60,9 @@ public class ResumeAnalysisService {
                             spec -> spec.validateSchema()
                     );
         } catch (Exception ex) {
+            log.info("Primary ChatClient (Gemini/RAG) failed for resumeId={} [{}]: {}. Falling back to extracted text with secondary providers.",
+                    resumeId, ex.getClass().getSimpleName(), ex.getMessage());
+
             Resume resume = resumeRepository.findById(resumeId)
                     .orElseThrow(() -> new IllegalArgumentException("Resume not found: " + resumeId));
 

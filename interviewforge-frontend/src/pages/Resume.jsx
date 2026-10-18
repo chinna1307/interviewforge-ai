@@ -7,6 +7,7 @@ import {
   getResumeAnalysis,
   getSavedResumeId,
   getSavedResumeMeta,
+  retryResume,
   saveResumeMeta,
   uploadResume,
 } from "../services/resumeService"
@@ -19,7 +20,6 @@ import {
   PageHeading,
   Skeleton,
   Spinner,
-  
   selectClass,
 } from "../components/ui"
 import { cx } from "../lib/cx"
@@ -318,13 +318,15 @@ function Resume() {
   const [userResumes, setUserResumes] = useState([])
   const [isUploading, setIsUploading] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
+  const [duplicateNotice, setDuplicateNotice] = useState(null)
   const [error, setError] = useState(null)
   const [analysis, setAnalysis] = useState(() => {
     const savedId = getSavedResumeId()
     return savedId ? getCachedAnalysis(savedId) : null
   })
 
-  const isBusy = isUploading || isAnalyzing
+  const isBusy = isUploading || isAnalyzing || isRetrying
 
   useEffect(() => {
     let mounted = true
@@ -339,6 +341,7 @@ function Resume() {
         const meta = {
           name: matching.fileName,
           resumeId: matching.id,
+          status: matching.status || "READY",
           uploadedAt: matching.uploadedAt
             ? new Date(matching.uploadedAt).toLocaleDateString()
             : "Saved",
@@ -397,6 +400,7 @@ function Resume() {
       return
     }
     setSelectedFile(file)
+    setDuplicateNotice(null)
     setError(null)
   }
 
@@ -404,11 +408,14 @@ function Resume() {
     if (!selectedFile || isBusy) return
 
     setError(null)
+    setDuplicateNotice(null)
     setIsUploading(true)
 
     try {
       const uploadResponse = await uploadResume(selectedFile)
       const createdResumeId = uploadResponse?.resumeId
+      const status = uploadResponse?.status || "READY"
+      const isDuplicate = Boolean(uploadResponse?.duplicate)
 
       if (!createdResumeId) {
         throw new Error(
@@ -420,6 +427,7 @@ function Resume() {
       const meta = {
         name: selectedFile.name,
         resumeId: createdResumeId,
+        status,
         uploadedAt: formatDate(new Date()),
       }
       saveResumeMeta(meta)
@@ -430,6 +438,34 @@ function Resume() {
       getMyResumes()
         .then((list) => Array.isArray(list) && setUserResumes(list))
         .catch(() => {})
+
+      if (isDuplicate) {
+        setDuplicateNotice({
+          resumeId: createdResumeId,
+          fileName: selectedFile.name,
+          status,
+          message:
+            uploadResponse?.message ||
+            "You've already uploaded this resume. View your existing analysis or re-analyze it.",
+        })
+
+        const cached = getCachedAnalysis(createdResumeId)
+        if (cached) {
+          setAnalysis(cached)
+        }
+        return
+      }
+
+      if (status === "FAILED") {
+        setError({
+          type: "indexing",
+          message:
+            uploadResponse?.message ||
+            "Resume text extracted, but vector indexing failed. Click Retry to complete indexing.",
+          resumeId: createdResumeId,
+        })
+        return
+      }
 
       await runAnalysis(createdResumeId)
     } catch (err) {
@@ -446,16 +482,69 @@ function Resume() {
     }
   }
 
+  const handleViewExistingAnalysis = (resumeId) => {
+    setDuplicateNotice(null)
+    setError(null)
+    const cached = getCachedAnalysis(resumeId)
+    if (cached) {
+      setAnalysis(cached)
+    } else {
+      runAnalysis(resumeId)
+    }
+  }
+
+  const handleReanalyze = (resumeId) => {
+    setDuplicateNotice(null)
+    runAnalysis(resumeId)
+  }
+
+  const handleRetryIndexing = async (resumeId) => {
+    if (!resumeId || isBusy) return
+
+    setError(null)
+    setIsRetrying(true)
+
+    try {
+      const res = await retryResume(resumeId)
+      setIsRetrying(false)
+      if (res?.status === "READY") {
+        setUploadedResume((prev) => ({ ...prev, status: "READY" }))
+        getMyResumes()
+          .then((list) => Array.isArray(list) && setUserResumes(list))
+          .catch(() => {})
+        await runAnalysis(resumeId)
+      } else {
+        setError({
+          type: "indexing",
+          message: res?.message || "Vector indexing retry failed. Please try again.",
+          resumeId,
+        })
+      }
+    } catch (err) {
+      setIsRetrying(false)
+      setError({
+        type: "indexing",
+        message:
+          err?.response?.data?.message ||
+          err?.message ||
+          "Retry request failed. Please try again.",
+        resumeId,
+      })
+    }
+  }
+
   const handleSelectExistingResume = (resume) => {
     const meta = {
       name: resume.fileName,
       resumeId: resume.id,
+      status: resume.status || "READY",
       uploadedAt: resume.uploadedAt
         ? new Date(resume.uploadedAt).toLocaleDateString()
         : "Saved",
     }
     saveResumeMeta(meta)
     setUploadedResume(meta)
+    setDuplicateNotice(null)
     setError(null)
     setAnalysis(getCachedAnalysis(resume.id) || null)
   }
@@ -540,7 +629,53 @@ function Resume() {
           </div>
         )}
 
-        {(isUploading || isAnalyzing) && (
+        {/* Duplicate resume notification banner */}
+        {duplicateNotice && (
+          <div className="mx-5 mb-5 rounded-2xl border border-brand-200 bg-brand-50/70 p-5 sm:mx-6 sm:mb-6 dark:border-brand-500/25 dark:bg-brand-500/10">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
+                  <IconLayers size={20} />
+                </span>
+                <div>
+                  <h4 className="text-sm font-semibold text-ink">
+                    Resume already uploaded
+                  </h4>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    {duplicateNotice.message} (Resume #{duplicateNotice.resumeId})
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleViewExistingAnalysis(duplicateNotice.resumeId)}
+                >
+                  View analysis
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleReanalyze(duplicateNotice.resumeId)}
+                >
+                  <IconRefresh size={14} />
+                  Re-analyze
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateNotice(null)}
+                  className="rounded-lg p-1.5 text-ink-muted hover:bg-black/5 dark:hover:bg-white/5"
+                  aria-label="Dismiss notice"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(isUploading || isAnalyzing || isRetrying) && (
           <div
             role="status"
             className="mx-5 mb-5 flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-3.5 text-sm text-brand-700 sm:mx-6 sm:mb-6 dark:border-brand-500/25 dark:bg-brand-500/10 dark:text-brand-300"
@@ -549,7 +684,9 @@ function Resume() {
             <span>
               {isUploading
                 ? "Uploading resume and extracting text…"
-                : "InterviewForge AI is analyzing your resume…"}
+                : isRetrying
+                  ? "Retrying vector embedding indexing…"
+                  : "InterviewForge AI is analyzing your resume…"}
             </span>
           </div>
         )}
@@ -558,12 +695,18 @@ function Resume() {
           <div className="mx-5 mb-5 sm:mx-6 sm:mb-6">
             <ErrorState
               message={`${
-                error.type === "upload" ? "Upload failed. " : "Analysis failed. "
+                error.type === "upload"
+                  ? "Upload failed. "
+                  : error.type === "indexing"
+                    ? "Indexing issue. "
+                    : "Analysis failed. "
               }${error.message}`}
               onRetry={
                 error.type === "analysis" && error.resumeId
                   ? () => runAnalysis(error.resumeId)
-                  : undefined
+                  : error.type === "indexing" && error.resumeId
+                    ? () => handleRetryIndexing(error.resumeId)
+                    : undefined
               }
             />
           </div>
@@ -584,9 +727,15 @@ function Resume() {
               </p>
               <p className="mt-0.5 text-[11px] text-ink-muted">
                 {uploadedResume?.resumeId ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    Ready · Resume #{uploadedResume.resumeId}
-                  </span>
+                  uploadedResume?.status === "FAILED" ? (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Indexing incomplete · Resume #{uploadedResume.resumeId}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      Ready · Resume #{uploadedResume.resumeId}
+                    </span>
+                  )
                 ) : selectedFile ? (
                   <span className="text-brand-600 dark:text-brand-300">
                     Ready to upload and analyze
@@ -599,6 +748,18 @@ function Resume() {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+            {uploadedResume?.resumeId && uploadedResume?.status === "FAILED" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleRetryIndexing(uploadedResume.resumeId)}
+                disabled={isBusy}
+              >
+                {isRetrying ? <Spinner /> : <IconRefresh size={14} />}
+                Retry indexing
+              </Button>
+            )}
+
             {userResumes.length > 1 && (
               <label htmlFor="resume-switch" className="sr-only">
                 Switch active resume
@@ -619,7 +780,7 @@ function Resume() {
               >
                 {userResumes.map((r) => (
                   <option key={r.id} value={r.id}>
-                    #{r.id} — {r.fileName}
+                    #{r.id} — {r.fileName} {r.status === "FAILED" ? "(Incomplete)" : ""}
                   </option>
                 ))}
               </select>
@@ -629,7 +790,7 @@ function Resume() {
               variant="secondary"
               size="sm"
               onClick={() => {
-                if (uploadedResume?.resumeId) runAnalysis(uploadedResume.resumeId)
+                if (uploadedResume?.resumeId) handleReanalyze(uploadedResume.resumeId)
                 else if (selectedFile) handleUploadAndAnalyze()
               }}
               disabled={(!uploadedResume && !selectedFile) || isBusy}
@@ -639,15 +800,18 @@ function Resume() {
                 ? "Uploading…"
                 : isAnalyzing
                   ? "Analyzing…"
-                  : analysis
-                    ? "Re-analyze"
-                    : "Analyze resume"}
+                  : isRetrying
+                    ? "Retrying…"
+                    : analysis
+                      ? "Re-analyze"
+                      : "Analyze resume"}
             </Button>
           </div>
         </div>
       </Card>
 
       {/* Analysis */}
+
       {isAnalyzing && !analysis ? (
         <div className="grid gap-5 md:grid-cols-2">
           {Array.from({ length: 6 }).map((_, index) => (

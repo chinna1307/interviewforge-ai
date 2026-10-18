@@ -66,4 +66,9 @@ export const getMyResumes = async () => {
   return response.data
 }
 
+export const retryResume = async (resumeId) => {
+  const response = await apiClient.post(`/api/resumes/${resumeId}/retry`)
+  return response.data
+}
+
 export const analyzeResume = getResumeAnalysis

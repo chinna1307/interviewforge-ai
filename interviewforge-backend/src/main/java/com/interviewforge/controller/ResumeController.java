@@ -8,6 +8,7 @@ import org.apache.tika.exception.TikaException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,7 +19,6 @@ import org.springframework.util.StringUtils;
 
 import com.interviewforge.dto.ResumeSummaryDto;
 import com.interviewforge.dto.ResumeUploadResponse;
-import com.interviewforge.entity.Resume;
 import com.interviewforge.entity.User;
 import com.interviewforge.repository.ResumeRepository;
 import com.interviewforge.repository.UserRepository;
@@ -85,19 +85,23 @@ public class ResumeController {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Resume savedResume = resumeService.saveResume(
+        ResumeUploadResponse response = resumeService.processResume(
                 originalFilename,
-                file.getContentType(),
+                detectedType,
+                content,
                 extractedText,
                 user
         );
 
-        return ResponseEntity.ok(
-                new ResumeUploadResponse(
-                        "Resume uploaded and text extracted successfully!",
-                        savedResume.getId()
-                )
-        );
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{resumeId}/retry")
+    public ResponseEntity<ResumeUploadResponse> retryResume(
+            @PathVariable Long resumeId,
+            Authentication authentication) {
+        ResumeUploadResponse response = resumeService.retryResumeEmbedding(resumeId, authentication.getName());
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/my")
@@ -111,7 +115,8 @@ public class ResumeController {
                         r.getId(),
                         r.getFileName(),
                         r.getFileType(),
-                        r.getUploadedAt()
+                        r.getUploadedAt(),
+                        r.getProcessingStatus().name()
                 ))
                 .toList();
     }

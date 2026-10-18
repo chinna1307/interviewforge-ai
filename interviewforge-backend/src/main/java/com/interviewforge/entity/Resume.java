@@ -4,15 +4,20 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "resumes")
+@Table(name = "resumes", uniqueConstraints = {
+    @UniqueConstraint(name = "uq_resumes_user_file_hash", columnNames = {"user_id", "file_hash"})
+})
 public class Resume {
 
     public Resume() {
@@ -25,6 +30,16 @@ public class Resume {
     private String fileName;
 
     private String fileType;
+
+    @Column(name = "file_hash", length = 64)
+    private String fileHash;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "processing_status", length = 20)
+    private ResumeProcessingStatus processingStatus = ResumeProcessingStatus.READY;
+
+    @Column(name = "failure_reason", columnDefinition = "TEXT")
+    private String failureReason;
 
     @Column(columnDefinition = "TEXT")
     private String extractedText;
@@ -59,6 +74,30 @@ public class Resume {
         this.fileType = fileType;
     }
 
+    public String getFileHash() {
+        return fileHash;
+    }
+
+    public void setFileHash(String fileHash) {
+        this.fileHash = fileHash;
+    }
+
+    public ResumeProcessingStatus getProcessingStatus() {
+        return processingStatus != null ? processingStatus : ResumeProcessingStatus.READY;
+    }
+
+    public void setProcessingStatus(ResumeProcessingStatus processingStatus) {
+        this.processingStatus = processingStatus;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public void setFailureReason(String failureReason) {
+        this.failureReason = failureReason;
+    }
+
     public String getExtractedText() {
         return extractedText;
     }
@@ -82,4 +121,4 @@ public class Resume {
     public void setUser(User user) {
         this.user = user;
     }
-}
+}
