@@ -80,4 +80,18 @@ class AIProviderRouterTest {
         RuntimeException ex = assertThrows(RuntimeException.class, () -> router.chat("Hello"));
         assertEquals("OpenRouter error", ex.getMessage());
     }
+
+    @Test
+    void testBothProvidersFail_entityChat_throwsExceptionWithDetails() {
+        when(groqProvider.chat(eq("Analyze"), eq(ResumeAnalysis.class)))
+                .thenThrow(new RuntimeException("Groq entity error"));
+        when(openRouterProvider.chat(eq("Analyze"), eq(ResumeAnalysis.class)))
+                .thenThrow(new RuntimeException("OpenRouter entity error"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                router.chat("Analyze", ResumeAnalysis.class));
+        assertEquals("OpenRouter entity error", ex.getMessage());
+        verify(groqProvider).chat("Analyze", ResumeAnalysis.class);
+        verify(openRouterProvider).chat("Analyze", ResumeAnalysis.class);
+    }
 }

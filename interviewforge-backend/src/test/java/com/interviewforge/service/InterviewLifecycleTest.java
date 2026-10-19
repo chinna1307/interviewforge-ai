@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -128,5 +130,39 @@ class InterviewLifecycleTest {
     void submitAnswer_emptyAnswer_throwsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class, () ->
                 answerService.submitAnswer(5L, new InterviewAnswerRequest("   ")));
+    }
+
+    @Test
+    void submitAnswer_aiProviderFailure_doesNotPersistAnswerOrIncrementProgress() {
+        InterviewQuestionEntity q = new InterviewQuestionEntity();
+        q.setSessionId(99L);
+        q.setQuestionNumber(1);
+        q.setQuestion("What is polymorphism?");
+        q.setAnswered(false);
+
+        InterviewSession session = new InterviewSession();
+        session.setId(99L);
+        session.setResumeId(10L);
+        session.setTotalQuestions(3);
+        session.setCurrentQuestion(1);
+        session.setStatus("STARTED");
+
+        when(questionRepository.findById(5L)).thenReturn(Optional.of(q));
+        when(sessionRepository.findById(99L)).thenReturn(Optional.of(session));
+
+        com.interviewforge.entity.Resume resume = new com.interviewforge.entity.Resume();
+        resume.setId(10L);
+        when(resumeRepository.findByIdAndUserEmail(10L, "candidate@example.com"))
+                .thenReturn(Optional.of(resume));
+
+        when(aiProviderRouter.chat(any(), eq(AnswerEvaluation.class)))
+                .thenThrow(new RuntimeException("Both primary (Groq) and fallback (OpenRouter) providers failed."));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                answerService.submitAnswer(5L, new InterviewAnswerRequest("Polymorphism is..."), "candidate@example.com"));
+
+        assertEquals("Both primary (Groq) and fallback (OpenRouter) providers failed.", ex.getMessage());
+        verify(questionRepository, never()).save(any());
+        verify(sessionRepository, never()).save(any());
     }
 }

@@ -31,7 +31,7 @@ public class ProviderConfig {
     @Value("${groq.base-url:https://api.groq.com/openai/v1}")
     private String groqBaseUrl;
 
-    @Value("${groq.model:llama-3.3-70b-versatile}")
+    @Value("${groq.model:openai/gpt-oss-120b}")
     private String groqModel;
 
     // ========================================
