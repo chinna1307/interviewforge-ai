@@ -10,6 +10,7 @@ import Login from "./pages/Login"
 import Profile from "./pages/Profile"
 import Register from "./pages/Register"
 import Resume from "./pages/Resume"
+import About from "./pages/About"
 import { isAuthenticated } from "./services/authService"
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
           <Route path="/interview" element={<Interview />} />
           <Route path="/history" element={<History />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/about" element={<About />} />
         </Route>
 
         <Route path="/" element={<Navigate to={defaultRoute} replace />} />

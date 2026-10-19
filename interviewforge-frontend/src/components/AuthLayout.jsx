@@ -24,14 +24,11 @@ export default function AuthLayout({ eyebrow, title, subtitle, children, footer 
         />
 
         <div className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-300 text-white shadow-[0_10px_24px_-8px_rgba(108,92,231,0.9)]">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M4 17.5V7.2a1.2 1.2 0 0 1 1.86-1l5.4 3.9a1.2 1.2 0 0 0 1.48 0l5.4-3.9A1.2 1.2 0 0 1 20 7.2v10.3a1.2 1.2 0 0 1-1.87 1l-5.65-4.1a1.2 1.2 0 0 0-1.44 0L5.87 18.3A1.2 1.2 0 0 1 4 17.5Z"
-                fill="currentColor"
-              />
-            </svg>
-          </div>
+          <img
+            src="/images/interviewforge-icon.png"
+            alt="InterviewForge AI"
+            className="h-11 w-11 shrink-0 rounded-xl object-contain shadow-[0_10px_24px_-8px_rgba(108,92,231,0.9)]"
+          />
           <div>
             <p className="text-base font-bold leading-tight text-white">
               InterviewForge<span className="text-brand-300"> AI</span>
@@ -43,6 +40,13 @@ export default function AuthLayout({ eyebrow, title, subtitle, children, footer 
         </div>
 
         <div className="relative max-w-md">
+          <div className="mb-6">
+            <img
+              src="/images/interviewforge-logo.png"
+              alt="InterviewForge AI"
+              className="h-20 w-auto max-w-[240px] object-contain"
+            />
+          </div>
           <h2 className="text-3xl font-bold leading-tight text-white text-balance">
             Practice real interviews.
             <br />
@@ -72,14 +76,11 @@ export default function AuthLayout({ eyebrow, title, subtitle, children, footer 
             to="/"
             className="mb-8 flex items-center gap-2.5 lg:hidden"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-300 text-white">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M4 17.5V7.2a1.2 1.2 0 0 1 1.86-1l5.4 3.9a1.2 1.2 0 0 0 1.48 0l5.4-3.9A1.2 1.2 0 0 1 20 7.2v10.3a1.2 1.2 0 0 1-1.87 1l-5.65-4.1a1.2 1.2 0 0 0-1.44 0L5.87 18.3A1.2 1.2 0 0 1 4 17.5Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
+            <img
+              src="/images/interviewforge-icon.png"
+              alt="InterviewForge AI"
+              className="h-10 w-10 shrink-0 rounded-xl object-contain"
+            />
             <span className="text-sm font-bold text-ink">
               InterviewForge<span className="text-brand-500"> AI</span>
             </span>

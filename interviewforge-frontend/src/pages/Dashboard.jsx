@@ -8,7 +8,6 @@ import {
   EmptyState,
   ErrorState,
   Skeleton,
-  StatPill,
   StatusBadge,
 } from "../components/ui"
 import { cx } from "../lib/cx"
@@ -384,8 +383,8 @@ function RecentInterviewCard({ latestCompleted, totalSessions }) {
         Recent mock interview
       </CardTitle>
 
-      <div className="mt-5 flex flex-col items-start gap-6 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-4">
+      <div className="mt-5 flex flex-col gap-6 sm:flex-row sm:items-center">
+        <div className="flex shrink-0 items-center gap-4">
           <ScoreRing
             value={percent}
             max={100}
@@ -396,7 +395,7 @@ function RecentInterviewCard({ latestCompleted, totalSessions }) {
             secondary={`${score.toFixed(2)} / 10`}
             caption={`Score out of 10 for session ${latestCompleted.sessionId}`}
           />
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
               {verdict}
             </p>
@@ -408,22 +407,49 @@ function RecentInterviewCard({ latestCompleted, totalSessions }) {
           </div>
         </div>
 
-        <div className="grid w-full flex-1 grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <StatPill label="Score" value={`${score.toFixed(1)}/10`} tone="success" />
-          <StatPill
-            label="Answered"
-            value={`${latestCompleted.answeredQuestions}/${latestCompleted.totalQuestions}`}
-          />
-          <StatPill
-            label="Resume"
-            value={latestCompleted.resumeFileName || "—"}
-          />
-          <div className="rounded-xl border border-line bg-surface-muted px-3 py-2">
+        <div className="grid w-full min-w-0 flex-1 grid-cols-2 gap-2.5">
+          <div className="min-w-0 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+              Score
+            </p>
+            <p className="mt-0.5 text-sm font-bold tabular-nums text-ink">
+              {score.toFixed(1)}/10
+            </p>
+          </div>
+
+          <div className="min-w-0 rounded-xl border border-line bg-surface-muted px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+              Answered
+            </p>
+            <p className="mt-0.5 text-sm font-bold tabular-nums text-ink">
+              {latestCompleted.answeredQuestions}/{latestCompleted.totalQuestions}
+            </p>
+          </div>
+
+          <div
+            className="min-w-0 rounded-xl border border-line bg-surface-muted px-3 py-2"
+            title={latestCompleted.resumeFileName || "—"}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+              Resume
+            </p>
+            <p className="mt-0.5 text-xs font-semibold leading-snug text-ink break-words [overflow-wrap:anywhere] line-clamp-2">
+              {latestCompleted.resumeFileName || "—"}
+            </p>
+          </div>
+
+          <div className="flex min-w-0 flex-col justify-between rounded-xl border border-line bg-surface-muted px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
               Status
             </p>
-            <div className="mt-1">
-              <StatusBadge status={latestCompleted.status} />
+            <div className="mt-1 flex items-center">
+              <StatusBadge
+                status={
+                  latestCompleted.status === "COMPLETE"
+                    ? "COMPLETED"
+                    : latestCompleted.status
+                }
+              />
             </div>
           </div>
         </div>

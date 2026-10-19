@@ -12,6 +12,7 @@ const ROUTE_META = {
   "/interview": { title: "Mock Interview", context: "Live practice session" },
   "/history": { title: "Interview History", context: "Every session you've run" },
   "/profile": { title: "Profile & Settings", context: "Account and preferences" },
+  "/about": { title: "About", context: "Platform overview & mission" },
 }
 
 function TopBar({ onOpenMenu, isMenuOpen, user, streak, notificationCount = 0 }) {
