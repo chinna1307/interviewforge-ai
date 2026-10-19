@@ -93,12 +93,35 @@ class InterviewLifecycleTest {
                 .thenReturn(List.of(q));
         when(sessionRepository.save(any())).thenReturn(session);
 
+        com.interviewforge.entity.Resume resume = new com.interviewforge.entity.Resume();
+        resume.setId(10L);
+        when(resumeRepository.findByIdAndUserEmail(10L, "candidate@example.com"))
+                .thenReturn(Optional.of(resume));
+
         AnswerEvaluation eval = answerService.submitAnswer(
-                5L, new InterviewAnswerRequest("JWT is a signed JSON token."));
+                5L, new InterviewAnswerRequest("JWT is a signed JSON token."), "candidate@example.com");
 
         assertEquals(8, eval.score());
         assertTrue(q.isAnswered());
         assertEquals("COMPLETED", session.getStatus());
+    }
+
+    @Test
+    void submitAnswer_unauthenticated_throwsAccessDeniedException() {
+        InterviewQuestionEntity q = new InterviewQuestionEntity();
+        q.setSessionId(99L);
+        q.setQuestionNumber(1);
+        q.setQuestion("What is JWT?");
+        q.setAnswered(false);
+
+        InterviewSession session = new InterviewSession();
+        session.setResumeId(10L);
+
+        when(questionRepository.findById(5L)).thenReturn(Optional.of(q));
+        when(sessionRepository.findById(99L)).thenReturn(Optional.of(session));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () ->
+                answerService.submitAnswer(5L, new InterviewAnswerRequest("JWT is a signed JSON token.")));
     }
 
     @Test

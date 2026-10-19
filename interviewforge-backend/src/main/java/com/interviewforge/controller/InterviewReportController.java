@@ -28,9 +28,8 @@ public class InterviewReportController {
     public InterviewReport generateReport(
             @PathVariable Long sessionId,
             Authentication authentication) {
-        if (authentication != null) {
-            interviewSessionService.verifySessionOwnership(sessionId, authentication.getName());
-        }
+        String userEmail = authentication != null ? authentication.getName() : null;
+        interviewSessionService.verifySessionOwnership(sessionId, userEmail);
         return interviewReportService.generateReport(sessionId);
     }
 }

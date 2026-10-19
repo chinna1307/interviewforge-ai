@@ -12,8 +12,8 @@ import {
   submitInterviewAnswer,
 } from "../services/interviewService"
 import {
-  getMyResumes,
-  getSavedResumeId,
+  getCurrentResume,
+  retryResume,
   saveResumeMeta,
 } from "../services/resumeService"
 import {
@@ -24,8 +24,6 @@ import {
   ErrorState,
   PageHeading,
   Spinner,
-  
-  selectClass,
 } from "../components/ui"
 import { cx } from "../lib/cx"
 import { EMERALD, ScoreRing } from "../components/charts"
@@ -38,6 +36,7 @@ import {
   IconChat,
   IconMic,
   IconRefresh,
+  IconResume,
   IconTarget,
   IconUpload,
 } from "../components/Icons"
@@ -61,20 +60,21 @@ function difficultyTone(difficulty) {
 /* --------------------------------- Setup --------------------------------- */
 
 function SetupView({
-  resumes,
-  selectedResumeId,
-  onSelectResume,
+  activeResume,
   onStart,
   isStarting,
-  hasSavedResume,
+  onRetry,
+  isRetrying,
+  onRefresh,
+  isRefreshing,
 }) {
-  if (resumes.length === 0 && !hasSavedResume) {
+  if (!activeResume || !activeResume.id) {
     return (
       <Card className="p-0">
         <EmptyState
           icon={<IconUpload size={24} />}
           title="Upload a resume to unlock mock interviews"
-          description="Every question is generated from your own resume through retrieval-augmented generation, so there is nothing to ask you about yet."
+          description="Every question is generated from your active resume through retrieval-augmented generation. Upload your resume to begin practicing."
           action={
             <Link
               to="/resume"
@@ -89,6 +89,10 @@ function SetupView({
     )
   }
 
+  const isReady = activeResume.status === "READY"
+  const isFailed = activeResume.status === "FAILED"
+  const isPending = !isReady && !isFailed
+
   return (
     <Card className="p-6 sm:p-8">
       <div className="mx-auto max-w-xl space-y-6">
@@ -101,10 +105,9 @@ function SetupView({
               Ready to begin your mock interview
             </h2>
             <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">
-              InterviewForge generates 5 questions from your resume, covering
-              technical depth, your projects, Java/backend and problem solving.
-              Answer each one to receive an instant score out of 10 and written
-              feedback.
+              InterviewForge generates 5 personalized questions from your active resume, covering
+              technical depth, your projects, Java/backend, and problem solving.
+              Answer each one to receive an instant score out of 10 and written feedback.
             </p>
           </div>
         </div>
@@ -128,46 +131,105 @@ function SetupView({
           ))}
         </ul>
 
-        {resumes.length > 0 ? (
-          <div>
-            <label
-              htmlFor="resume-select"
-              className="mb-1.5 block text-xs font-semibold text-ink-soft"
-            >
-              Resume used for question generation
-            </label>
-            <select
-              id="resume-select"
-              value={selectedResumeId}
-              onChange={(event) => onSelectResume(Number(event.target.value))}
-              disabled={isStarting}
-              className={selectClass}
-            >
-              {resumes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  Resume #{r.id} — {r.fileName}
-                </option>
-              ))}
-            </select>
+        {/* Read-only Active Resume Display Card */}
+        <div className="rounded-2xl border border-line bg-surface-muted/60 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+              Active Resume
+            </span>
+            {isReady && (
+              <Badge tone="success">
+                <IconCheck size={12} className="mr-0.5" /> Ready for interview
+              </Badge>
+            )}
+            {isPending && (
+              <Badge tone="warning">
+                <Spinner className="mr-0.5 h-3 w-3" /> Indexing in progress
+              </Badge>
+            )}
+            {isFailed && (
+              <Badge tone="danger">
+                <IconAlert size={12} className="mr-0.5" /> Indexing failed
+              </Badge>
+            )}
           </div>
-        ) : (
-          <div className="rounded-xl border border-line bg-surface-muted p-4 text-xs text-ink-soft">
-            Using saved resume ID{" "}
-            <span className="font-bold text-ink">#{selectedResumeId}</span>
+
+          <div className="mt-3 flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+              <IconResume size={20} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-ink">
+                {activeResume.fileName}
+              </p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                Uploaded {activeResume.uploadedAt ? formatDate(activeResume.uploadedAt) : "Recently"} • Active Resume #{activeResume.id}
+              </p>
+            </div>
           </div>
-        )}
+
+          {isPending && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  Your resume is currently being indexed into the vector store. Question generation requires vector search.
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={onRefresh}
+                  disabled={isRefreshing}
+                  className="shrink-0"
+                >
+                  {isRefreshing ? <Spinner /> : <IconRefresh size={13} />}
+                  {isRefreshing ? "Checking…" : "Check status"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isFailed && (
+            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  Vector indexing failed for your active resume. Interview questions cannot be generated until indexing succeeds.
+                </span>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={onRetry}
+                  disabled={isRetrying}
+                  className="shrink-0"
+                >
+                  {isRetrying ? <Spinner /> : <IconRefresh size={13} />}
+                  {isRetrying ? "Retrying indexing…" : "Retry indexing"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
           <Link
             to="/resume"
             className="text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-300"
           >
-            Upload a different resume
+            {isFailed ? "Retry indexing on resume page" : "Upload or replace active resume"}
           </Link>
 
-          <Button size="lg" onClick={onStart} disabled={!selectedResumeId || isStarting}>
+          <Button
+            size="lg"
+            onClick={onStart}
+            disabled={!isReady || isStarting}
+          >
             {isStarting ? <Spinner /> : <IconMic size={16} />}
-            {isStarting ? "Generating questions…" : "Start mock interview"}
+            {isStarting
+              ? "Generating questions…"
+              : isPending
+                ? "Indexing in progress…"
+                : isFailed
+                  ? "Indexing failed"
+                  : "Start mock interview"}
           </Button>
         </div>
       </div>
@@ -612,15 +674,14 @@ function ReportView({ report, onGenerate, isGenerating, onRetry }) {
 function Interview() {
   const [searchParams, setSearchParams] = useSearchParams()
   const querySessionId = searchParams.get("sessionId")
-  const queryResumeId = searchParams.get("resumeId")
   const viewTab = searchParams.get("tab")
 
-  const [resumes, setResumes] = useState([])
-  const [selectedResumeId, setSelectedResumeId] = useState(
-    () => Number(queryResumeId) || getSavedResumeId() || "",
-  )
+  const [activeResume, setActiveResume] = useState(null)
+  const [selectedResumeId, setSelectedResumeId] = useState(null)
   const [isLoadingSetup, setIsLoadingSetup] = useState(true)
   const [isStarting, setIsStarting] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const [session, setSession] = useState(null)
   const [questions, setQuestions] = useState([])
@@ -700,23 +761,20 @@ function Interview() {
     const init = async () => {
       setIsLoadingSetup(true)
       try {
-        const myResumes = await getMyResumes().catch(() => [])
+        const currentResume = await getCurrentResume().catch(() => null)
         if (!active) return
-        if (Array.isArray(myResumes) && myResumes.length > 0) {
-          setResumes(myResumes)
-          setSelectedResumeId((current) => {
-            if (current && myResumes.some((r) => r.id === current)) return current
-            const fallback = myResumes[0].id
-            saveResumeMeta({ resumeId: fallback, name: myResumes[0].fileName })
-            return fallback
-          })
+        if (currentResume && currentResume.id && currentResume.active) {
+          setActiveResume(currentResume)
+          setSelectedResumeId(currentResume.id)
+          saveResumeMeta({ resumeId: currentResume.id, name: currentResume.fileName })
+        } else {
+          setActiveResume(null)
+          setSelectedResumeId(null)
         }
 
         const targetSessionId = querySessionId
           ? Number(querySessionId)
-          : !queryResumeId
-            ? getSavedSessionId()
-            : null
+          : getSavedSessionId()
 
         if (targetSessionId) {
           await loadExistingSession(targetSessionId, viewTab === "report")
@@ -730,7 +788,45 @@ function Interview() {
     return () => {
       active = false
     }
-  }, [querySessionId, queryResumeId, viewTab, loadExistingSession])
+  }, [querySessionId, viewTab, loadExistingSession])
+
+  const handleRefreshActiveResume = async () => {
+    setIsRefreshing(true)
+    try {
+      const refreshed = await getCurrentResume().catch(() => null)
+      if (refreshed && refreshed.id && refreshed.active) {
+        setActiveResume(refreshed)
+        setSelectedResumeId(refreshed.id)
+      } else {
+        setActiveResume(null)
+        setSelectedResumeId(null)
+      }
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  const handleRetryIndexing = async () => {
+    if (!activeResume?.id || isRetrying) return
+    setIsRetrying(true)
+    setError("")
+    try {
+      await retryResume(activeResume.id)
+      const refreshed = await getCurrentResume()
+      if (refreshed && refreshed.id && refreshed.active) {
+        setActiveResume(refreshed)
+        setSelectedResumeId(refreshed.id)
+      }
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to re-index resume. Please try again or re-upload your resume on the resume page."
+      )
+    } finally {
+      setIsRetrying(false)
+    }
+  }
 
   const handleStartInterview = async () => {
     if (!selectedResumeId || isStarting) return
@@ -900,7 +996,7 @@ function Interview() {
             ? isCompleted
               ? "This interview is graded. Review your answers or generate the full AI report."
               : "Answer each question in your own words to receive an instant score and written feedback."
-            : "Pick a resume and InterviewForge generates five questions grounded in it."
+            : "InterviewForge generates five personalized questions grounded in your active resume."
         }
         actions={
           session && (
@@ -933,12 +1029,13 @@ function Interview() {
 
       {!session ? (
         <SetupView
-          resumes={resumes}
-          selectedResumeId={selectedResumeId}
-          onSelectResume={setSelectedResumeId}
+          activeResume={activeResume}
           onStart={handleStartInterview}
           isStarting={isStarting}
-          hasSavedResume={Boolean(selectedResumeId)}
+          onRetry={handleRetryIndexing}
+          isRetrying={isRetrying}
+          onRefresh={handleRefreshActiveResume}
+          isRefreshing={isRefreshing}
         />
       ) : questions.length === 0 ? (
         <Card className="p-0">

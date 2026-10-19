@@ -26,6 +26,7 @@ class ResumeControllerTest {
 
     private ResumeService resumeService;
     private UserRepository userRepository;
+    private com.interviewforge.repository.ResumeRepository resumeRepository;
     private ResumeController resumeController;
 
     private static final byte[] VALID_PDF_BYTES = ("%PDF-1.4\n"
@@ -41,7 +42,8 @@ class ResumeControllerTest {
     void setUp() {
         resumeService = mock(ResumeService.class);
         userRepository = mock(UserRepository.class);
-        resumeController = new ResumeController(resumeService, userRepository);
+        resumeRepository = mock(com.interviewforge.repository.ResumeRepository.class);
+        resumeController = new ResumeController(resumeService, userRepository, resumeRepository);
     }
 
     @Test
@@ -146,6 +148,48 @@ class ResumeControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("READY", response.getBody().status());
+    }
+
+    @Test
+    void getCurrentResume_activeResumeExists_returnsOkWithActiveResumeSummary() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("alice@example.com");
+
+        com.interviewforge.entity.Resume activeResume = new com.interviewforge.entity.Resume();
+        activeResume.setId(6L);
+        activeResume.setFileName("Alice_Active.pdf");
+        activeResume.setFileType("application/pdf");
+        activeResume.setActive(true);
+        activeResume.setProcessingStatus(com.interviewforge.entity.ResumeProcessingStatus.READY);
+        activeResume.setUploadedAt(java.time.LocalDateTime.now());
+
+        when(resumeRepository.findFirstByUserEmailAndActiveTrue("alice@example.com"))
+                .thenReturn(Optional.of(activeResume));
+
+        ResponseEntity<?> response = resumeController.getCurrentResume(auth);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody() instanceof com.interviewforge.dto.ResumeSummaryDto);
+
+        com.interviewforge.dto.ResumeSummaryDto dto = (com.interviewforge.dto.ResumeSummaryDto) response.getBody();
+        assertEquals(6L, dto.id());
+        assertEquals("Alice_Active.pdf", dto.fileName());
+        assertEquals("READY", dto.status());
+        assertTrue(dto.active());
+    }
+
+    @Test
+    void getCurrentResume_noActiveResume_returnsNoContent() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("alice@example.com");
+
+        when(resumeRepository.findFirstByUserEmailAndActiveTrue("alice@example.com"))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = resumeController.getCurrentResume(auth);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
     }
 }
 

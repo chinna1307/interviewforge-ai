@@ -41,20 +41,30 @@ public class InterviewSessionService {
         this.mockInterviewService = mockInterviewService;
     }
 
-    public void verifyResumeOwnership(Long resumeId, String userEmail) {
-        if (userEmail == null) return;
-        Resume resume = resumeRepository.findByIdAndUserEmail(resumeId, userEmail)
-                .orElseThrow(() -> new AccessDeniedException("Resume not found or access denied."));
-        if (!resume.isActive() || resume.getProcessingStatus() != com.interviewforge.entity.ResumeProcessingStatus.READY) {
-            throw new AccessDeniedException("Resume is not the active ready resume.");
+    public Resume verifyResumeOwnership(Long resumeId, String userEmail) {
+        if (userEmail == null || userEmail.isBlank()) {
+            throw new AccessDeniedException("Authentication required.");
         }
+        return resumeRepository.findByIdAndUserEmail(resumeId, userEmail)
+                .orElseThrow(() -> new AccessDeniedException("Resume not found or access denied."));
+    }
+
+    public Resume verifyActiveReadyResumeOwnership(Long resumeId, String userEmail) {
+        Resume resume = verifyResumeOwnership(resumeId, userEmail);
+        if (!resume.isActive()) {
+            throw new AccessDeniedException("Only the active resume can be used to start a mock interview.");
+        }
+        if (resume.getProcessingStatus() != com.interviewforge.entity.ResumeProcessingStatus.READY) {
+            String status = resume.getProcessingStatus() != null ? resume.getProcessingStatus().name() : "PENDING";
+            throw new AccessDeniedException("Resume is not ready for interview generation (status: "
+                    + status + "). Please ensure indexing has completed successfully.");
+        }
+        return resume;
     }
 
     public InterviewSession verifySessionOwnership(Long sessionId, String userEmail) {
         InterviewSession session = getSession(sessionId);
-        if (userEmail != null) {
-            verifyResumeOwnership(session.getResumeId(), userEmail);
-        }
+        verifyResumeOwnership(session.getResumeId(), userEmail);
         return session;
     }
 
@@ -162,7 +172,11 @@ public class InterviewSessionService {
         }
 
         Map<Long, String> resumeNames = userResumes.stream()
-                .collect(Collectors.toMap(Resume::getId, Resume::getFileName));
+                .collect(Collectors.toMap(
+                        Resume::getId,
+                        r -> r.getFileName() != null ? r.getFileName() : "Resume #" + r.getId(),
+                        (existing, replacement) -> existing
+                ));
         List<Long> resumeIds = new ArrayList<>(resumeNames.keySet());
 
         List<InterviewSession> sessions =

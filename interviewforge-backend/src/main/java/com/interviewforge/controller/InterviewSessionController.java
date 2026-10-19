@@ -34,34 +34,34 @@ public class InterviewSessionController {
     public InterviewSession startInterview(
             @PathVariable Long resumeId,
             Authentication authentication) {
-        if (authentication != null) {
-            interviewSessionService.verifyResumeOwnership(resumeId, authentication.getName());
-        }
+        String userEmail = authentication != null ? authentication.getName() : null;
+        interviewSessionService.verifyActiveReadyResumeOwnership(resumeId, userEmail);
         return interviewSessionService.startInterview(resumeId);
     }
 
     @GetMapping("/history")
     public List<SessionSummaryDto> getHistory(Authentication authentication) {
-        return interviewSessionService.getUserSessionHistory(authentication.getName());
+        String userEmail = authentication != null ? authentication.getName() : null;
+        if (userEmail == null || userEmail.isBlank()) {
+            throw new org.springframework.security.access.AccessDeniedException("Authentication required.");
+        }
+        return interviewSessionService.getUserSessionHistory(userEmail);
     }
 
     @GetMapping("/{sessionId}")
     public InterviewSession getSession(
             @PathVariable Long sessionId,
             Authentication authentication) {
-        if (authentication != null) {
-            return interviewSessionService.verifySessionOwnership(sessionId, authentication.getName());
-        }
-        return interviewSessionService.getSession(sessionId);
+        String userEmail = authentication != null ? authentication.getName() : null;
+        return interviewSessionService.verifySessionOwnership(sessionId, userEmail);
     }
 
     @GetMapping("/{sessionId}/result")
     public InterviewResult getInterviewResult(
             @PathVariable Long sessionId,
             Authentication authentication) {
-        if (authentication != null) {
-            interviewSessionService.verifySessionOwnership(sessionId, authentication.getName());
-        }
+        String userEmail = authentication != null ? authentication.getName() : null;
+        interviewSessionService.verifySessionOwnership(sessionId, userEmail);
         return interviewSessionService.getInterviewResult(sessionId);
     }
 
@@ -69,9 +69,8 @@ public class InterviewSessionController {
     public List<InterviewQuestionEntity> getQuestions(
             @PathVariable Long sessionId,
             Authentication authentication) {
-        if (authentication != null) {
-            interviewSessionService.verifySessionOwnership(sessionId, authentication.getName());
-        }
+        String userEmail = authentication != null ? authentication.getName() : null;
+        interviewSessionService.verifySessionOwnership(sessionId, userEmail);
         return interviewQuestionRepository.findBySessionIdOrderByQuestionNumber(sessionId);
     }
 }
