@@ -7,4 +7,5 @@ import com.interviewforge.entity.InterviewSession;
 public interface InterviewSessionRepository extends JpaRepository<InterviewSession, Long> {
     List<InterviewSession> findByResumeIdInOrderByStartedAtDesc(List<Long> resumeIds);
     List<InterviewSession> findByResumeIdOrderByStartedAtDesc(Long resumeId);
+    void deleteByResumeId(Long resumeId);
 }

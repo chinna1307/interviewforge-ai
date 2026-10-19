@@ -43,8 +43,11 @@ public class InterviewSessionService {
 
     public void verifyResumeOwnership(Long resumeId, String userEmail) {
         if (userEmail == null) return;
-        resumeRepository.findByIdAndUserEmail(resumeId, userEmail)
+        Resume resume = resumeRepository.findByIdAndUserEmail(resumeId, userEmail)
                 .orElseThrow(() -> new AccessDeniedException("Resume not found or access denied."));
+        if (!resume.isActive() || resume.getProcessingStatus() != com.interviewforge.entity.ResumeProcessingStatus.READY) {
+            throw new AccessDeniedException("Resume is not the active ready resume.");
+        }
     }
 
     public InterviewSession verifySessionOwnership(Long sessionId, String userEmail) {

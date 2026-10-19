@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import {
+  clearCachedAnalysis,
   getCachedAnalysis,
+  getCurrentResume,
   getMyResumes,
   getResumeAnalysis,
   getSavedResumeId,
   getSavedResumeMeta,
+  replaceResume,
   retryResume,
   saveResumeMeta,
   uploadResume,
@@ -20,7 +23,6 @@ import {
   PageHeading,
   Skeleton,
   Spinner,
-  selectClass,
 } from "../components/ui"
 import { cx } from "../lib/cx"
 import {
@@ -156,9 +158,88 @@ const SECTION_ICON_TONES = {
   coral: "bg-orange-50 text-orange-600 dark:bg-orange-500/12",
 }
 
+/* ----------------------- Replace Confirmation Modal ----------------------- */
+
+function ReplaceConfirmationModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  currentResumeName,
+  newFileName,
+  isBusy,
+}) {
+  if (!isOpen) return null
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="replace-dialog-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !isBusy) onClose()
+      }}
+    >
+      <div className="relative w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-2xl transition-all dark:bg-[#18181b]">
+        <div className="flex items-start gap-3.5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
+            <IconAlert size={22} />
+          </span>
+          <div className="min-w-0">
+            <h3 id="replace-dialog-title" className="text-base font-bold text-ink">
+              Replace your resume?
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+              You already have a resume uploaded. If you continue, your current resume, its AI analysis, and its indexed data will be replaced by the new resume. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+
+        {(currentResumeName || newFileName) && (
+          <div className="mt-4 space-y-2 rounded-xl border border-line bg-surface-muted p-3 text-xs">
+            {currentResumeName && (
+              <div className="flex items-center justify-between text-ink-muted">
+                <span className="font-medium">Current resume:</span>
+                <span className="max-w-[210px] truncate font-semibold text-ink">{currentResumeName}</span>
+              </div>
+            )}
+            {newFileName && (
+              <div className="flex items-center justify-between text-ink-muted">
+                <span className="font-medium">Replacement:</span>
+                <span className="max-w-[210px] truncate font-semibold text-brand-600 dark:text-brand-400">{newFileName}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-end gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onClose}
+            disabled={isBusy}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onConfirm}
+            disabled={isBusy}
+            className="bg-red-600 text-white hover:bg-red-700"
+          >
+            {isBusy ? <Spinner /> : null}
+            Replace resume
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ------------------------------ Upload zone ------------------------------ */
 
-function Dropzone({ selectedFile, disabled, onFile, inputId }) {
+function Dropzone({ selectedFile, disabled, onFile, inputId, label = "Choose file", subtitle }) {
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef(null)
 
@@ -192,8 +273,7 @@ function Dropzone({ selectedFile, disabled, onFile, inputId }) {
         {selectedFile ? "Ready to upload" : "Drop your resume here"}
       </h3>
       <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-ink-muted">
-        Upload your latest resume in PDF, DOCX or DOC format (max 10 MB). We
-        extract the text and send it to the AI analyzer.
+        {subtitle || "Upload your resume in PDF, DOCX or DOC format (max 10 MB). We extract the text and generate 768-dimensional AI embeddings for personalized interview prep."}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
@@ -207,7 +287,7 @@ function Dropzone({ selectedFile, disabled, onFile, inputId }) {
           )}
         >
           <IconUpload size={16} />
-          {selectedFile ? "Choose a different file" : "Choose file"}
+          {selectedFile ? "Choose a different file" : label}
         </label>
 
         <input
@@ -226,7 +306,7 @@ function Dropzone({ selectedFile, disabled, onFile, inputId }) {
       </div>
 
       <p className="mt-4 text-[11px] text-ink-faint">
-        Supported formats: PDF, DOCX, DOC · Maximum 10 MB
+        Supported formats: PDF, DOCX, DOC · Maximum 10 MB · Exactly one active resume per account
       </p>
     </div>
   )
@@ -313,9 +393,13 @@ function AnalysisSection({ section, items }) {
 
 function Resume() {
   const navigate = useNavigate()
+  const replaceInputRef = useRef(null)
+
   const [selectedFile, setSelectedFile] = useState(null)
+  const [pendingReplaceFile, setPendingReplaceFile] = useState(null)
+  const [showReplaceModal, setShowReplaceModal] = useState(false)
   const [uploadedResume, setUploadedResume] = useState(() => getSavedResumeMeta())
-  const [userResumes, setUserResumes] = useState([])
+
   const [isUploading, setIsUploading] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
@@ -328,39 +412,8 @@ function Resume() {
 
   const isBusy = isUploading || isAnalyzing || isRetrying
 
-  useEffect(() => {
-    let mounted = true
-
-    getMyResumes()
-      .then((list) => {
-        if (!mounted || !Array.isArray(list) || list.length === 0) return
-        setUserResumes(list)
-
-        const savedId = getSavedResumeId()
-        const matching = list.find((r) => r.id === savedId) || list[0]
-        const meta = {
-          name: matching.fileName,
-          resumeId: matching.id,
-          status: matching.status || "READY",
-          uploadedAt: matching.uploadedAt
-            ? new Date(matching.uploadedAt).toLocaleDateString()
-            : "Saved",
-        }
-        setUploadedResume(meta)
-        saveResumeMeta(meta)
-
-        const cached = getCachedAnalysis(matching.id)
-        if (cached) setAnalysis(cached)
-      })
-      .catch(() => {})
-
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  const runAnalysis = async (resumeId) => {
-    if (!resumeId || isAnalyzing) return
+  const runAnalysis = useCallback(async (resumeId) => {
+    if (!resumeId) return
 
     setError(null)
     setIsAnalyzing(true)
@@ -381,30 +434,184 @@ function Resume() {
     } finally {
       setIsAnalyzing(false)
     }
-  }
+  }, [])
 
-  const handleFile = (file) => {
+  useEffect(() => {
+    let mounted = true
+
+    getCurrentResume()
+      .then((active) => {
+        if (!mounted) return
+        if (active && active.id) {
+          const meta = {
+            name: active.fileName,
+            resumeId: active.id,
+            status: active.status || "READY",
+            uploadedAt: active.uploadedAt
+              ? new Date(active.uploadedAt).toLocaleDateString()
+              : "Active",
+          }
+          setUploadedResume(meta)
+          saveResumeMeta(meta)
+
+          const cached = getCachedAnalysis(active.id)
+          if (cached) {
+            setAnalysis(cached)
+          } else if (active.status !== "FAILED") {
+            runAnalysis(active.id)
+          }
+        } else {
+          // Fallback check to getMyResumes
+          getMyResumes()
+            .then((list) => {
+              if (!mounted || !Array.isArray(list) || list.length === 0) return
+              const first = list[0]
+              const meta = {
+                name: first.fileName,
+                resumeId: first.id,
+                status: first.status || "READY",
+                uploadedAt: first.uploadedAt
+                  ? new Date(first.uploadedAt).toLocaleDateString()
+                  : "Saved",
+              }
+              setUploadedResume(meta)
+              saveResumeMeta(meta)
+
+              const cached = getCachedAnalysis(first.id)
+              if (cached) setAnalysis(cached)
+            })
+            .catch(() => {})
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      mounted = false
+    }
+  }, [runAnalysis])
+
+  const validateFile = (file) => {
     const lower = file.name.toLowerCase()
     if (!ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(`.${ext}`))) {
       setError({
         type: "upload",
         message: "Unsupported file format. Please select a PDF, DOCX or DOC resume.",
       })
-      return
+      return false
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
       setError({
         type: "upload",
         message: "File exceeds the 10 MB size limit. Please choose a smaller file.",
       })
-      return
+      return false
     }
+    return true
+  }
+
+  // Handler for first-time upload selection
+  const handleFirstUploadFile = (file) => {
+    if (!validateFile(file)) return
     setSelectedFile(file)
     setDuplicateNotice(null)
     setError(null)
   }
 
-  const handleUploadAndAnalyze = async () => {
+  // Handler when selecting a replacement file
+  const handleSelectReplacementFile = (file) => {
+    if (!validateFile(file)) return
+    setError(null)
+    setDuplicateNotice(null)
+    setPendingReplaceFile(file)
+    setShowReplaceModal(true)
+  }
+
+  // Confirm replacement action
+  const handleConfirmReplacement = async () => {
+    if (!pendingReplaceFile || isBusy) return
+
+    const fileToUpload = pendingReplaceFile
+    setShowReplaceModal(false)
+    setError(null)
+    setDuplicateNotice(null)
+    setIsUploading(true)
+
+    // Requirement 8: Never display previous resume's analysis as analysis of replacement
+    setAnalysis(null)
+    if (uploadedResume?.resumeId) {
+      clearCachedAnalysis(uploadedResume.resumeId)
+    }
+
+    try {
+      const uploadResponse = await replaceResume(fileToUpload)
+      const createdResumeId = uploadResponse?.resumeId
+      const status = uploadResponse?.status || "READY"
+      const isDuplicate = Boolean(uploadResponse?.duplicate)
+
+      if (!createdResumeId) {
+        throw new Error(
+          uploadResponse?.message || "Resume upload completed, but no resume ID was returned.",
+        )
+      }
+
+      const meta = {
+        name: fileToUpload.name,
+        resumeId: createdResumeId,
+        status,
+        uploadedAt: formatDate(new Date()),
+      }
+      saveResumeMeta(meta)
+      setUploadedResume(meta)
+      setPendingReplaceFile(null)
+      setIsUploading(false)
+
+      if (isDuplicate) {
+        setDuplicateNotice({
+          resumeId: createdResumeId,
+          fileName: fileToUpload.name,
+          status,
+          message:
+            uploadResponse?.message ||
+            "You've already uploaded this resume. View your existing analysis or re-analyze it.",
+        })
+        const cached = getCachedAnalysis(createdResumeId)
+        if (cached) setAnalysis(cached)
+        return
+      }
+
+      if (status === "FAILED") {
+        setError({
+          type: "indexing",
+          message:
+            uploadResponse?.message ||
+            "Replacement resume uploaded and text extracted, but vector indexing failed. Click Retry to complete indexing.",
+          resumeId: createdResumeId,
+        })
+        return
+      }
+
+      // Fetch fresh analysis for the replacement resume only
+      await runAnalysis(createdResumeId)
+    } catch (err) {
+      setIsUploading(false)
+      setError({
+        type: "upload",
+        message:
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          (typeof err?.response?.data === "string" ? err.response.data : null) ||
+          err?.message ||
+          "Resume replacement failed. Please verify the file and try again.",
+      })
+    }
+  }
+
+  const handleCancelReplacement = () => {
+    setPendingReplaceFile(null)
+    setShowReplaceModal(false)
+  }
+
+  const handleUploadFirstResume = async () => {
     if (!selectedFile || isBusy) return
 
     setError(null)
@@ -412,15 +619,14 @@ function Resume() {
     setIsUploading(true)
 
     try {
-      const uploadResponse = await uploadResume(selectedFile)
+      const uploadResponse = await uploadResume(selectedFile, false)
       const createdResumeId = uploadResponse?.resumeId
       const status = uploadResponse?.status || "READY"
       const isDuplicate = Boolean(uploadResponse?.duplicate)
 
       if (!createdResumeId) {
         throw new Error(
-          uploadResponse?.message ||
-            "Resume uploaded, but the server did not return a resume ID.",
+          uploadResponse?.message || "Resume uploaded, but server did not return a resume ID.",
         )
       }
 
@@ -435,10 +641,6 @@ function Resume() {
       setSelectedFile(null)
       setIsUploading(false)
 
-      getMyResumes()
-        .then((list) => Array.isArray(list) && setUserResumes(list))
-        .catch(() => {})
-
       if (isDuplicate) {
         setDuplicateNotice({
           resumeId: createdResumeId,
@@ -448,11 +650,8 @@ function Resume() {
             uploadResponse?.message ||
             "You've already uploaded this resume. View your existing analysis or re-analyze it.",
         })
-
         const cached = getCachedAnalysis(createdResumeId)
-        if (cached) {
-          setAnalysis(cached)
-        }
+        if (cached) setAnalysis(cached)
         return
       }
 
@@ -469,6 +668,14 @@ function Resume() {
 
       await runAnalysis(createdResumeId)
     } catch (err) {
+      setIsUploading(false)
+      if (err?.response?.status === 409) {
+        // Confirmation required by server
+        setPendingReplaceFile(selectedFile)
+        setSelectedFile(null)
+        setShowReplaceModal(true)
+        return
+      }
       setError({
         type: "upload",
         message:
@@ -478,24 +685,7 @@ function Resume() {
           err?.message ||
           "Resume upload failed. Please verify the file and try again.",
       })
-      setIsUploading(false)
     }
-  }
-
-  const handleViewExistingAnalysis = (resumeId) => {
-    setDuplicateNotice(null)
-    setError(null)
-    const cached = getCachedAnalysis(resumeId)
-    if (cached) {
-      setAnalysis(cached)
-    } else {
-      runAnalysis(resumeId)
-    }
-  }
-
-  const handleReanalyze = (resumeId) => {
-    setDuplicateNotice(null)
-    runAnalysis(resumeId)
   }
 
   const handleRetryIndexing = async (resumeId) => {
@@ -509,9 +699,6 @@ function Resume() {
       setIsRetrying(false)
       if (res?.status === "READY") {
         setUploadedResume((prev) => ({ ...prev, status: "READY" }))
-        getMyResumes()
-          .then((list) => Array.isArray(list) && setUserResumes(list))
-          .catch(() => {})
         await runAnalysis(resumeId)
       } else {
         setError({
@@ -533,20 +720,9 @@ function Resume() {
     }
   }
 
-  const handleSelectExistingResume = (resume) => {
-    const meta = {
-      name: resume.fileName,
-      resumeId: resume.id,
-      status: resume.status || "READY",
-      uploadedAt: resume.uploadedAt
-        ? new Date(resume.uploadedAt).toLocaleDateString()
-        : "Saved",
-    }
-    saveResumeMeta(meta)
-    setUploadedResume(meta)
+  const handleReanalyze = (resumeId) => {
     setDuplicateNotice(null)
-    setError(null)
-    setAnalysis(getCachedAnalysis(resume.id) || null)
+    runAnalysis(resumeId)
   }
 
   const normalized = {
@@ -558,14 +734,26 @@ function Resume() {
     suggestions: normalizeList(analysis?.suggestions),
   }
 
+  const hasActiveResume = Boolean(uploadedResume?.resumeId)
+
   return (
     <div className="space-y-6">
+      {/* Confirmation Modal */}
+      <ReplaceConfirmationModal
+        isOpen={showReplaceModal}
+        onClose={handleCancelReplacement}
+        onConfirm={handleConfirmReplacement}
+        currentResumeName={uploadedResume?.name}
+        newFileName={pendingReplaceFile?.name}
+        isBusy={isBusy}
+      />
+
       <PageHeading
         eyebrow="Resume"
         title="Resume review"
         description="Upload your resume and let InterviewForge AI extract your skills, strengths, gaps and project feedback."
         actions={
-          uploadedResume?.resumeId && (
+          hasActiveResume && (
             <button
               type="button"
               onClick={() => navigate(`/interview?resumeId=${uploadedResume.resumeId}`)}
@@ -579,239 +767,225 @@ function Resume() {
         }
       />
 
-      {/* Upload */}
-      <Card className="p-0">
-        <div className="p-5 sm:p-6">
-          <Dropzone
-            inputId="resume-upload"
-            selectedFile={selectedFile}
-            disabled={isBusy}
-            onFile={handleFile}
-          />
-        </div>
-
-        {selectedFile && (
-          <div className="mx-5 mb-5 flex flex-col gap-3 rounded-xl border border-line bg-surface-muted p-4 sm:mx-6 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/12">
-                <IconLayers size={18} />
+      {/* Active Resume Card (Shown when user has a resume uploaded) */}
+      {hasActiveResume && (
+        <Card className="p-6 border-brand-200/70 bg-gradient-to-r from-surface to-brand-50/30 dark:border-brand-500/20 dark:to-brand-500/5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-card">
+                <IconLayers size={22} />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">
-                  {selectedFile.name}
-                </p>
-                <p className="mt-0.5 text-[11px] text-ink-muted">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB · ready to
-                  send
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-base font-bold text-ink">
+                    {uploadedResume.name}
+                  </p>
+                  <Badge tone={uploadedResume.status === "FAILED" ? "warning" : (uploadedResume.status === "INDEXING_PENDING" ? "brand" : "success")}>
+                    {uploadedResume.status === "FAILED"
+                      ? "Indexing failed"
+                      : (uploadedResume.status === "INDEXING_PENDING"
+                        ? "Indexing pending"
+                        : "Active & indexed")}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-ink-muted">
+                  {uploadedResume.status === "FAILED" ? (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      Vector indexing failed · Click Retry indexing below
+                    </span>
+                  ) : uploadedResume.status === "INDEXING_PENDING" ? (
+                    <span className="text-brand-600 dark:text-brand-400 font-medium">
+                      Analysis available · Vector indexing pending for mock interview prep
+                    </span>
+                  ) : (
+                    <span>
+                      Ready & indexed with 768-dim embeddings · Uploaded {uploadedResume.uploadedAt || "recently"}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedFile(null)}
+            <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+              {(uploadedResume.status === "FAILED" || uploadedResume.status === "INDEXING_PENDING") && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleRetryIndexing(uploadedResume.resumeId)}
+                  disabled={isBusy}
+                >
+                  {isRetrying ? <Spinner /> : <IconRefresh size={14} />}
+                  Retry indexing
+                </Button>
+              )}
+
+              {/* Replace resume file input & trigger */}
+              <input
+                ref={replaceInputRef}
+                id="replace-resume-input"
+                type="file"
+                accept=".pdf,.docx,.doc"
                 disabled={isBusy}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-muted transition hover:border-red-200 hover:text-red-500 disabled:opacity-40"
-                aria-label="Remove selected file"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleSelectReplacementFile(file)
+                  e.target.value = ""
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => replaceInputRef.current?.click()}
+                disabled={isBusy}
               >
-                <IconTrash size={15} />
-              </button>
-              <Button onClick={handleUploadAndAnalyze} disabled={isBusy}>
-                {isBusy ? <Spinner /> : <IconUpload size={15} />}
-                {isUploading
-                  ? "Uploading…"
-                  : isAnalyzing
-                    ? "Analyzing…"
-                    : "Upload & analyze"}
+                <IconUpload size={14} />
+                Replace resume
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleReanalyze(uploadedResume.resumeId)}
+                disabled={isBusy}
+              >
+                {isAnalyzing ? <Spinner /> : <IconRefresh size={14} />}
+                {analysis ? "Re-analyze" : "Analyze"}
               </Button>
             </div>
           </div>
-        )}
+        </Card>
+      )}
 
-        {/* Duplicate resume notification banner */}
-        {duplicateNotice && (
-          <div className="mx-5 mb-5 rounded-2xl border border-brand-200 bg-brand-50/70 p-5 sm:mx-6 sm:mb-6 dark:border-brand-500/25 dark:bg-brand-500/10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
-                  <IconLayers size={20} />
+      {/* Upload Zone (Displayed if user has no resume yet) */}
+      {!hasActiveResume && (
+        <Card className="p-0">
+          <div className="p-5 sm:p-6">
+            <Dropzone
+              inputId="first-resume-upload"
+              selectedFile={selectedFile}
+              disabled={isBusy}
+              onFile={handleFirstUploadFile}
+              label="Choose resume file"
+            />
+          </div>
+
+          {selectedFile && (
+            <div className="mx-5 mb-5 flex flex-col gap-3 rounded-xl border border-line bg-surface-muted p-4 sm:mx-6 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/12">
+                  <IconLayers size={18} />
                 </span>
-                <div>
-                  <h4 className="text-sm font-semibold text-ink">
-                    Resume already uploaded
-                  </h4>
-                  <p className="mt-0.5 text-xs text-ink-muted">
-                    {duplicateNotice.message} (Resume #{duplicateNotice.resumeId})
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">
+                    {selectedFile.name}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-ink-muted">
+                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB · ready to upload
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => handleViewExistingAnalysis(duplicateNotice.resumeId)}
-                >
-                  View analysis
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => handleReanalyze(duplicateNotice.resumeId)}
-                >
-                  <IconRefresh size={14} />
-                  Re-analyze
-                </Button>
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setDuplicateNotice(null)}
-                  className="rounded-lg p-1.5 text-ink-muted hover:bg-black/5 dark:hover:bg-white/5"
-                  aria-label="Dismiss notice"
+                  onClick={() => setSelectedFile(null)}
+                  disabled={isBusy}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-muted transition hover:border-red-200 hover:text-red-500 disabled:opacity-40"
+                  aria-label="Remove selected file"
                 >
-                  ✕
+                  <IconTrash size={15} />
                 </button>
+                <Button onClick={handleUploadFirstResume} disabled={isBusy}>
+                  {isBusy ? <Spinner /> : <IconUpload size={15} />}
+                  {isUploading ? "Uploading & indexing…" : "Upload & analyze"}
+                </Button>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </Card>
+      )}
 
-        {(isUploading || isAnalyzing || isRetrying) && (
-          <div
-            role="status"
-            className="mx-5 mb-5 flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-3.5 text-sm text-brand-700 sm:mx-6 sm:mb-6 dark:border-brand-500/25 dark:bg-brand-500/10 dark:text-brand-300"
-          >
-            <Spinner />
-            <span>
-              {isUploading
-                ? "Uploading resume and extracting text…"
-                : isRetrying
-                  ? "Retrying vector embedding indexing…"
-                  : "InterviewForge AI is analyzing your resume…"}
-            </span>
-          </div>
-        )}
+      {/* Duplicate resume notification banner */}
+      {duplicateNotice && (
+        <div className="rounded-2xl border border-brand-200 bg-brand-50/70 p-5 dark:border-brand-500/25 dark:bg-brand-500/10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
+                <IconLayers size={20} />
+              </span>
+              <div>
+                <h4 className="text-sm font-semibold text-ink">
+                  Identical resume detected
+                </h4>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  {duplicateNotice.message}
+                </p>
+              </div>
+            </div>
 
-        {error && (
-          <div className="mx-5 mb-5 sm:mx-6 sm:mb-6">
-            <ErrorState
-              message={`${
-                error.type === "upload"
-                  ? "Upload failed. "
-                  : error.type === "indexing"
-                    ? "Indexing issue. "
-                    : "Analysis failed. "
-              }${error.message}`}
-              onRetry={
-                error.type === "analysis" && error.resumeId
-                  ? () => runAnalysis(error.resumeId)
-                  : error.type === "indexing" && error.resumeId
-                    ? () => handleRetryIndexing(error.resumeId)
-                    : undefined
-              }
-            />
-          </div>
-        )}
-      </Card>
-
-      {/* Active resume */}
-      <Card className="p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-500 dark:bg-brand-500/12">
-              <IconLayers size={19} />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-ink">
-                {uploadedResume?.name ||
-                  (selectedFile ? selectedFile.name : "No resume uploaded yet")}
-              </p>
-              <p className="mt-0.5 text-[11px] text-ink-muted">
-                {uploadedResume?.resumeId ? (
-                  uploadedResume?.status === "FAILED" ? (
-                    <span className="text-amber-600 dark:text-amber-400">
-                      Indexing incomplete · Resume #{uploadedResume.resumeId}
-                    </span>
-                  ) : (
-                    <span className="text-emerald-600 dark:text-emerald-400">
-                      Ready · Resume #{uploadedResume.resumeId}
-                    </span>
-                  )
-                ) : selectedFile ? (
-                  <span className="text-brand-600 dark:text-brand-300">
-                    Ready to upload and analyze
-                  </span>
-                ) : (
-                  "Choose a file above to begin AI evaluation"
-                )}
-              </p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setDuplicateNotice(null)
+                  runAnalysis(duplicateNotice.resumeId)
+                }}
+              >
+                View analysis
+              </Button>
+              <button
+                type="button"
+                onClick={() => setDuplicateNotice(null)}
+                className="rounded-lg p-1.5 text-ink-muted hover:bg-black/5 dark:hover:bg-white/5"
+                aria-label="Dismiss notice"
+              >
+                ✕
+              </button>
             </div>
           </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
-            {uploadedResume?.resumeId && uploadedResume?.status === "FAILED" && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleRetryIndexing(uploadedResume.resumeId)}
-                disabled={isBusy}
-              >
-                {isRetrying ? <Spinner /> : <IconRefresh size={14} />}
-                Retry indexing
-              </Button>
-            )}
-
-            {userResumes.length > 1 && (
-              <label htmlFor="resume-switch" className="sr-only">
-                Switch active resume
-              </label>
-            )}
-            {userResumes.length > 1 && (
-              <select
-                id="resume-switch"
-                value={uploadedResume?.resumeId || ""}
-                onChange={(event) => {
-                  const chosen = userResumes.find(
-                    (r) => r.id === Number(event.target.value),
-                  )
-                  if (chosen) handleSelectExistingResume(chosen)
-                }}
-                disabled={isBusy}
-                className={cx(selectClass, "w-auto py-2 text-xs")}
-              >
-                {userResumes.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    #{r.id} — {r.fileName} {r.status === "FAILED" ? "(Incomplete)" : ""}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                if (uploadedResume?.resumeId) handleReanalyze(uploadedResume.resumeId)
-                else if (selectedFile) handleUploadAndAnalyze()
-              }}
-              disabled={(!uploadedResume && !selectedFile) || isBusy}
-            >
-              {isBusy ? <Spinner /> : <IconRefresh size={14} />}
-              {isUploading
-                ? "Uploading…"
-                : isAnalyzing
-                  ? "Analyzing…"
-                  : isRetrying
-                    ? "Retrying…"
-                    : analysis
-                      ? "Re-analyze"
-                      : "Analyze resume"}
-            </Button>
-          </div>
         </div>
-      </Card>
+      )}
 
-      {/* Analysis */}
+      {/* Loading status indicator */}
+      {(isUploading || isAnalyzing || isRetrying) && (
+        <div
+          role="status"
+          className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-4 text-sm text-brand-700 dark:border-brand-500/25 dark:bg-brand-500/10 dark:text-brand-300"
+        >
+          <Spinner />
+          <span>
+            {isUploading
+              ? "Validating resume, extracting text and indexing 768-dim embeddings…"
+              : isRetrying
+                ? "Retrying vector embedding indexing into PGVector…"
+                : "InterviewForge AI is analyzing your active resume…"}
+          </span>
+        </div>
+      )}
 
+      {/* Error State with clear retry action */}
+      {error && (
+        <ErrorState
+          message={`${
+            error.type === "upload"
+              ? "Upload failed: "
+              : error.type === "indexing"
+                ? "Vector indexing issue: "
+                : "Analysis failed: "
+          }${error.message}`}
+          onRetry={
+            error.type === "analysis" && error.resumeId
+              ? () => runAnalysis(error.resumeId)
+              : error.type === "indexing" && error.resumeId
+                ? () => handleRetryIndexing(error.resumeId)
+                : undefined
+          }
+        />
+      )}
+
+      {/* Analysis Results */}
       {isAnalyzing && !analysis ? (
         <div className="grid gap-5 md:grid-cols-2">
           {Array.from({ length: 6 }).map((_, index) => (
@@ -870,11 +1044,11 @@ function Resume() {
           <EmptyState
             icon={<IconBulb size={24} />}
             title="No analysis yet"
-            description="Upload a resume above and InterviewForge AI will return real extracted skills, strengths, weaknesses, missing skills, project feedback and suggestions."
+            description="Upload or activate a resume above to have InterviewForge AI evaluate your skills, strengths, weaknesses, project depth and improvement tips."
             action={
-              uploadedResume?.resumeId && (
+              hasActiveResume && (
                 <Button onClick={() => runAnalysis(uploadedResume.resumeId)}>
-                  Analyze my resume
+                  Analyze active resume
                 </Button>
               )
             }

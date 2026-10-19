@@ -46,6 +46,9 @@ public class Resume {
 
     private LocalDateTime uploadedAt;
 
+    @Column(name = "is_active", nullable = false)
+    private boolean active = false;
+
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -83,7 +86,7 @@ public class Resume {
     }
 
     public ResumeProcessingStatus getProcessingStatus() {
-        return processingStatus != null ? processingStatus : ResumeProcessingStatus.READY;
+        return processingStatus;
     }
 
     public void setProcessingStatus(ResumeProcessingStatus processingStatus) {
@@ -120,5 +123,13 @@ public class Resume {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }

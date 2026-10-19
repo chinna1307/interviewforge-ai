@@ -25,9 +25,13 @@ public class RAGController {
             @RequestParam Long resumeId,
             @RequestParam String question,
             Authentication authentication) {
-        resumeRepository.findByIdAndUserEmail(resumeId, authentication.getName())
+        com.interviewforge.entity.Resume resume = resumeRepository.findByIdAndUserEmail(resumeId, authentication.getName())
                 .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
                         "Resume not found or access denied."));
+
+        if (!resume.isActive() || resume.getProcessingStatus() != com.interviewforge.entity.ResumeProcessingStatus.READY) {
+            throw new org.springframework.security.access.AccessDeniedException("Resume is not the active ready resume.");
+        }
 
         return chatClient
                 .prompt()

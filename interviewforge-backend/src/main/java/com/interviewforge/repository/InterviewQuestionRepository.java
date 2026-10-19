@@ -12,4 +12,6 @@ public interface InterviewQuestionRepository
     List<InterviewQuestionEntity> findBySessionIdOrderByQuestionNumber(
             Long sessionId
     );
+
+    void deleteBySessionId(Long sessionId);
 }
